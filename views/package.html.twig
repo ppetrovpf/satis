@@ -3,24 +3,34 @@
 {% set col2_class = 'col-sm-9 col-md-10' %}
 
 <div class="card {% if package.abandoned %}border-danger{% else %}border-primary{% endif %} mb-3">
-    <div id="{{ package.highest.name }}" class="card-header {% if package.abandoned %}bg-danger{% else %}bg-primary{% endif %}">
-        <a href="#{{ package.highest.name }}" class="text-white">
-            <svg class="octicon-link" width="16" height="16">
-                <use xlink:href="#octicon-link"></use>
-            </svg>
-            {{ package.highest.name }}
-        </a>
+    <div id="{{ package.highest.name }}" class="d-flex flex-row card-header {% if package.abandoned %}bg-danger{% else %}bg-primary{% endif %}">
+        <div class="d-flex flex-fill justify-content-start">
+            <a href="#{{ package.highest.name }}" class="text-white">
+                <svg class="octicon-link" width="16" height="16">
+                    <use xlink:href="#octicon-link"></use>
+                </svg>
+                {{ package.highest.name }}
+            </a>
 
-        {% if package.abandoned %}
-        <p class="abandoned">
-            <strong>Abandoned!</strong>
-            Package is abandoned, you should avoid using it.
-            {% if package.replacement %}
-                Use {{ package.replacement }} instead.
-            {% else %}
-                No replacement was suggested.
+            {% if package.abandoned %}
+            <p class="abandoned">
+                <strong>Abandoned!</strong>
+                Package is abandoned, you should avoid using it.
+                {% if package.replacement %}
+                    Use {{ package.replacement }} instead.
+                {% else %}
+                    No replacement was suggested.
+                {% endif %}
+            </p>
             {% endif %}
-        </p>
+        </div>
+
+        {% if package.highest.extra.distReadmeUrl is defined and package.highest.extra.distReadmeUrl is not empty %}
+        <div class="d-flex">
+            <a href="{{ package.highest.extra.distReadmeUrl }}" class="text-white">
+                README.md
+            </a>
+        </div>
         {% endif %}
     </div>
 
@@ -94,7 +104,18 @@
                 <a href="{{ version.distUrl }}" title="dist-reference: {{ version.distReference }}{{ branch_alias }}">{{ version.prettyVersion }}</a>
                 {%- else -%}
                 <a href="{{ version.sourceUrl }}" title="source-reference: {{ version.sourceReference }}{{ branch_alias }}">{{ version.prettyVersion }}</a>
+                {%- endif %}
+
+                {% spaceless %}
+                {%- if version.extra.distChangelogUrl is defined and version.extra.distChangelogUrl is not empty -%}
+                <a href="{{ version.extra.distChangelogUrl }}">
+                    <svg class="octicon-diff" width="16" height="16">
+                        <use xlink:href="#octicon-diff"></use>
+                    </svg>
+                </a>
                 {%- endif -%}
+                {% endspaceless %}
+
                 {%- if not loop.last -%}, {% endif -%}
                 {% endfor %}
             </dd>

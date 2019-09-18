@@ -22,6 +22,8 @@ use Composer\Satis\Builder\ArchiveBuilder;
 use Composer\Satis\Builder\PackagesBuilder;
 use Composer\Satis\Builder\WebBuilder;
 use Composer\Satis\Console\Application;
+use Composer\Satis\Extractor\ChangelogExtractor;
+use Composer\Satis\Extractor\ReadmeExtractor;
 use Composer\Satis\PackageSelection\PackageSelection;
 use Composer\Util\RemoteFilesystem;
 use JsonSchema\Validator;
@@ -207,6 +209,16 @@ EOT
         }
 
         if ($htmlView) {
+            // extracting readme files from packages.
+            $readmeExtractor = new ReadmeExtractor($output, $outputDir, $config);
+            $readmeExtractor->setComposer($composer);
+            $readmeExtractor->extract($packages);
+
+            // extracting a changelog for each package.
+            $changelogExtractor = new ChangelogExtractor($output, $outputDir, $config);
+            $changelogExtractor->setComposer($composer);
+            $changelogExtractor->extract($packages);
+
             $web = new WebBuilder($output, $outputDir, $config, $skipErrors);
             $web->setRootPackage($composer->getPackage());
             $web->dump($packages);
