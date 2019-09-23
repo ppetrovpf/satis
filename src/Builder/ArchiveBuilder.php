@@ -28,18 +28,19 @@ class ArchiveBuilder extends Builder
 {
     /** @var Composer A Composer instance. */
     private $composer;
+
     /** @var InputInterface */
     private $input;
 
     public function dump(array $packages): void
     {
-        $helper = new ArchiveBuilderHelper($this->output, $this->config['archive']);
+        $helper  = new ArchiveBuilderHelper($this->output, $this->outputDir, $this->config['archive']);
         $basedir = $helper->getDirectory($this->outputDir);
         $this->output->writeln(sprintf("<info>Creating local downloads in '%s'</info>", $basedir));
-        $endpoint = $this->config['archive']['prefix-url'] ?? $this->config['homepage'];
+        $endpoint               = $this->config['archive']['prefix-url'] ?? $this->config['homepage'];
         $includeArchiveChecksum = (bool) ($this->config['archive']['checksum'] ?? true);
-        $composerConfig = $this->composer->getConfig();
-        $factory = new Factory();
+        $composerConfig         = $this->composer->getConfig();
+        $factory                = new Factory();
         /* @var DownloadManager $downloadManager */
         $downloadManager = $this->composer->getDownloadManager();
         /* @var ArchiveManager $archiveManager */
@@ -48,9 +49,9 @@ class ArchiveBuilder extends Builder
 
         shuffle($packages);
 
-        $progressBar = null;
-        $hasStarted = false;
-        $verbosity = $this->output->getVerbosity();
+        $progressBar    = null;
+        $hasStarted     = false;
+        $verbosity      = $this->output->getVerbosity();
         $renderProgress = $this->input->getOption('stats') && OutputInterface::VERBOSITY_NORMAL == $verbosity;
 
         if ($renderProgress) {
@@ -106,7 +107,7 @@ class ArchiveBuilder extends Builder
                 if ('pear-library' === $package->getType()) {
                     // PEAR packages are archives already
                     $filesystem = new Filesystem();
-                    $path = sprintf(
+                    $path       = sprintf(
                         '%s/%s/%s.%s',
                         realpath($basedir),
                         $intermediatePath,
@@ -119,7 +120,10 @@ class ArchiveBuilder extends Builder
                         $filesystem->ensureDirectoryExists($downloadDir);
                         $downloadManager->download($package, $downloadDir, false);
                         $filesystem->ensureDirectoryExists(dirname($path));
-                        $filesystem->rename($downloadDir . '/' . pathinfo($package->getDistUrl(), PATHINFO_BASENAME), $path);
+                        $filesystem->rename(
+                            $downloadDir . '/' . pathinfo($package->getDistUrl(), PATHINFO_BASENAME),
+                            $path
+                        );
                         $filesystem->removeDirectory($downloadDir);
                     }
 
@@ -129,11 +133,18 @@ class ArchiveBuilder extends Builder
                     $targetDir = sprintf('%s/%s', $basedir, $intermediatePath);
 
                     $path = $this->archive($downloadManager, $archiveManager, $package, $targetDir);
+
                     $archiveFormat = pathinfo($path, PATHINFO_EXTENSION);
                 }
 
                 $archive = basename($path);
-                $distUrl = sprintf('%s/%s/%s/%s', $endpoint, $this->config['archive']['directory'], $intermediatePath, $archive);
+                $distUrl = sprintf(
+                    '%s/%s/%s/%s',
+                    $endpoint,
+                    $this->config['archive']['directory'],
+                    $intermediatePath,
+                    $archive
+                );
                 $package->setDistType($archiveFormat);
                 $package->setDistUrl($distUrl);
                 $package->setDistSha1Checksum($includeArchiveChecksum ? hash_file('sha1', $path) : null);
@@ -179,12 +190,16 @@ class ArchiveBuilder extends Builder
         return $this;
     }
 
-    private function archive(DownloadManager $downloadManager, ArchiveManager $archiveManager, PackageInterface $package, string $targetDir): string
-    {
-        $format = (string) ($this->config['archive']['format'] ?? 'zip');
-        $ignoreFilters = (bool) ($this->config['archive']['ignore-filters'] ?? false);
+    private function archive(
+        DownloadManager $downloadManager,
+        ArchiveManager $archiveManager,
+        PackageInterface $package,
+        string $targetDir
+    ): string {
+        $format           = (string) ($this->config['archive']['format'] ?? 'zip');
+        $ignoreFilters    = (bool) ($this->config['archive']['ignore-filters'] ?? false);
         $overrideDistType = (bool) ($this->config['archive']['override-dist-type'] ?? false);
-        $rearchive = (bool) ($this->config['archive']['rearchive'] ?? true);
+        $rearchive        = (bool) ($this->config['archive']['rearchive'] ?? true);
 
         $filesystem = new Filesystem();
         $filesystem->ensureDirectoryExists($targetDir);
@@ -227,7 +242,7 @@ class ArchiveBuilder extends Builder
         }
 
         if ($overrideDistType) {
-            $path = $targetDir . '/' . $packageName . '.' . $format;
+            $path       = $targetDir . '/' . $packageName . '.' . $format;
             $downloaded = $archiveManager->archive($package, $format, $targetDir, null, $ignoreFilters);
             $filesystem->rename($downloaded, $path);
 

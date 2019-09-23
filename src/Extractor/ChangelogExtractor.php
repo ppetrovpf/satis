@@ -15,6 +15,7 @@ namespace Composer\Satis\Extractor;
 
 use Composer\Composer;
 use Composer\Package\PackageInterface;
+use Composer\Satis\Builder\ArchiveBuilderHelper;
 use Composer\Satis\Distribution\Path;
 use Composer\Satis\Extractor\Changelog\Diff;
 use Composer\Util\Filesystem;
@@ -30,16 +31,18 @@ class ChangelogExtractor
 
     /** @var OutputInterface $output The output Interface. */
     private $output;
+
     /** @var string $outputDir The directory where to build. */
     private $outputDir;
+
     /** @var array $config The parameters from ./satis.json. */
     protected $config;
 
     public function __construct(OutputInterface $output, string $outputDir, array $config)
     {
-        $this->output = $output;
+        $this->output    = $output;
         $this->outputDir = $outputDir;
-        $this->config = $config;
+        $this->config    = $config;
     }
 
     /**
@@ -51,6 +54,8 @@ class ChangelogExtractor
      */
     public function extract(array $packages): void
     {
+        $this->output->writeln('<info>Extracting CHANGELOG.md from packages</info>');
+
         $versionPairs = $this->findVersionPairs($packages);
 
         foreach ($versionPairs as list($version, $versionPrevious)) {
@@ -86,7 +91,7 @@ class ChangelogExtractor
 
         foreach ($index as $packageName => $versions) {
             $versionPrevious = array_shift($versions);
-            $versionPairs[] = [$versionPrevious, null];
+            $versionPairs[]  = [$versionPrevious, null];
 
             foreach ($versions as $version) {
                 $versionPairs[] = [$version, $versionPrevious];
@@ -107,9 +112,14 @@ class ChangelogExtractor
      */
     private function buildIndex(array $packages): array
     {
-        $index = [];
+        $helper = new ArchiveBuilderHelper($this->output, $this->outputDir, $this->config['archive']);
+        $index  = [];
 
         foreach ($packages as $package) {
+            if ($helper->isSkippable($package)) {
+                continue;
+            }
+
             $packageName = $package->getName();
 
             if (!array_key_exists($packageName, $index)) {
@@ -122,9 +132,12 @@ class ChangelogExtractor
         }
 
         foreach ($index as $packageName => &$versions) {
-            usort($versions, function ($first, $second) {
-                return version_compare($first->getVersion(), $second->getVersion(), '>=');
-            });
+            usort(
+                $versions,
+                function ($first, $second) {
+                    return version_compare($first->getVersion(), $second->getVersion(), '>=');
+                }
+            );
         }
 
         return $index;
@@ -133,7 +146,7 @@ class ChangelogExtractor
     /**
      * Extracts a changelog file with diff set for given package versions and returns an url for distribution
      *
-     * @param PackageInterface $version
+     * @param PackageInterface      $version
      * @param PackageInterface|null $versionPrevious
      *
      * @return string|null
@@ -142,14 +155,23 @@ class ChangelogExtractor
     {
         $packageDistChangelogUrl = null;
 
+        $this->output->writeln(
+            sprintf(
+                "<info>Extracting CHANGELOG.md from package '%s' (%s..%s)</info>",
+                $version->getName(),
+                $version->getPrettyVersion(),
+                $versionPrevious instanceof PackageInterface ? $versionPrevious->getPrettyVersion() : '0.0.0'
+            )
+        );
+
         $versionPath = $this->extractVersion($version);
 
-        $distPath = new Path($this->output, $this->outputDir, $this->config);
+        $distPath        = new Path($this->output, $this->outputDir, $this->config);
         $versionDistPath = $distPath->getPackageDistPath($version, $version->getPrettyVersion());
 
         $changelogFilename = sprintf('changelog-%s.md', $version->getPrettyVersion());
 
-        $filesystem = new Filesystem();
+        $filesystem          = new Filesystem();
         $changelogTargetPath = dirname($versionDistPath) . DIRECTORY_SEPARATOR . $changelogFilename;
 
         $versionChangelogSourcePath = $versionPath . DIRECTORY_SEPARATOR . 'changelog.md';
@@ -157,10 +179,10 @@ class ChangelogExtractor
         if (empty($versionPrevious)) {
             $filesystem->copy($versionChangelogSourcePath, $changelogTargetPath);
         } else {
-            $versionPreviousPath = $this->extractVersion($versionPrevious);
+            $versionPreviousPath                = $this->extractVersion($versionPrevious);
             $versionPreviousChangelogSourcePath = $versionPreviousPath . DIRECTORY_SEPARATOR . 'changelog.md';
 
-            $diff = Diff::compareFiles($versionPreviousChangelogSourcePath, $versionChangelogSourcePath);
+            $diff     = Diff::compareFiles($versionPreviousChangelogSourcePath, $versionChangelogSourcePath);
             $diffData = Diff::toRaw($diff);
 
             file_put_contents($changelogTargetPath, $diffData);
@@ -170,7 +192,7 @@ class ChangelogExtractor
 
         $filesystem->remove($versionPath);
 
-        $versionDistUrl = $version->getDistUrl();
+        $versionDistUrl          = $version->getDistUrl();
         $packageDistChangelogUrl = dirname($versionDistUrl) . DIRECTORY_SEPARATOR . $changelogFilename;
 
         return $packageDistChangelogUrl;
@@ -185,14 +207,14 @@ class ChangelogExtractor
      */
     private function extractVersion(PackageInterface $package): string
     {
-        $distPath = new Path($this->output, $this->outputDir, $this->config);
+        $distPath        = new Path($this->output, $this->outputDir, $this->config);
         $packageDistPath = $distPath->getPackageDistPath($package, $package->getPrettyVersion());
 
         $extractPath = realpath($packageDistPath);
-        $tmpPath = sys_get_temp_dir() . '/changelog_extractor' . uniqid();
+        $tmpPath     = sys_get_temp_dir() . '/changelog_extractor' . uniqid();
 
         $downloadManager = $this->composer->getDownloadManager();
-        $downloader = $downloadManager->getDownloader('zip');
+        $downloader      = $downloadManager->getDownloader('zip');
 
         $downloader->extract($extractPath, $tmpPath);
 
@@ -203,7 +225,7 @@ class ChangelogExtractor
      * Sets changelog distribution url for the specified package
      *
      * @param PackageInterface $package
-     * @param string $distChangelogUrl
+     * @param string           $distChangelogUrl
      *
      * @return void
      */

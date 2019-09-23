@@ -15,6 +15,7 @@ namespace Composer\Satis\Extractor;
 
 use Composer\Composer;
 use Composer\Package\PackageInterface;
+use Composer\Satis\Builder\ArchiveBuilderHelper;
 use Composer\Satis\Distribution\Path;
 use Composer\Util\Filesystem;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -29,16 +30,18 @@ class ReadmeExtractor
 
     /** @var OutputInterface $output The output Interface. */
     private $output;
+
     /** @var string $outputDir The directory where to build. */
     private $outputDir;
+
     /** @var array $config The parameters from ./satis.json. */
     protected $config;
 
     public function __construct(OutputInterface $output, string $outputDir, array $config)
     {
-        $this->output = $output;
+        $this->output    = $output;
         $this->outputDir = $outputDir;
-        $this->config = $config;
+        $this->config    = $config;
     }
 
     /**
@@ -50,6 +53,8 @@ class ReadmeExtractor
      */
     public function extract(array $packages): void
     {
+        $this->output->writeln('<info>Extracting README.md from packages</info>');
+
         $versionByPackage = $this->resolveVersions($packages);
 
         /** @var PackageInterface $package */
@@ -80,14 +85,19 @@ class ReadmeExtractor
      */
     private function resolveVersions(array $packages): array
     {
+        $helper           = new ArchiveBuilderHelper($this->output, $this->outputDir, $this->config['archive']);
         $versionByPackage = [];
 
         foreach ($packages as $package) {
-            $packageName = $package->getName();
+            if ($helper->isSkippable($package)) {
+                continue;
+            }
+
+            $packageName    = $package->getName();
             $packageVersion = $package->getPrettyVersion();
 
-            if (!array_key_exists($packageName, $versionByPackage) ||
-                1 === version_compare($package->getVersion(), $versionByPackage[$packageName][1])) {
+            if (!array_key_exists($packageName, $versionByPackage)
+                || 1 === version_compare($package->getVersion(), $versionByPackage[$packageName][1])) {
                 $versionByPackage[$packageName] = [$package, $packageVersion];
             }
         }
@@ -99,20 +109,20 @@ class ReadmeExtractor
      * Performs package archive extract action for specified version and returns a readme url for distribution
      *
      * @param PackageInterface $package
-     * @param string $version
+     * @param string           $version
      *
      * @return string|null
      */
     private function extractByVersion(PackageInterface $package, string $version): ?string
     {
-        $distPath = new Path($this->output, $this->outputDir, $this->config);
+        $distPath        = new Path($this->output, $this->outputDir, $this->config);
         $packageDistPath = $distPath->getPackageDistPath($package, $version);
 
         $extractPath = realpath($packageDistPath);
-        $tmpPath = sys_get_temp_dir() . '/readme_extractor' . uniqid();
+        $tmpPath     = sys_get_temp_dir() . '/readme_extractor' . uniqid();
 
         $downloadManager = $this->composer->getDownloadManager();
-        $downloader = $downloadManager->getDownloader('zip');
+        $downloader      = $downloadManager->getDownloader('zip');
 
         $this->output->writeln(
             sprintf(
@@ -122,7 +132,7 @@ class ReadmeExtractor
             )
         );
 
-        $filesystem = new Filesystem();
+        $filesystem    = new Filesystem();
         $distReadmeUrl = null;
 
         $downloader->extract($extractPath, $tmpPath);
@@ -131,14 +141,14 @@ class ReadmeExtractor
             $packageExtra = $package->getExtra();
 
             $readmeExplicitPath = $packageExtra['readme'] ?? 'readme.md';
-            $readmeSourcePath = $tmpPath . DIRECTORY_SEPARATOR . $readmeExplicitPath;
+            $readmeSourcePath   = $tmpPath . DIRECTORY_SEPARATOR . $readmeExplicitPath;
 
             if (file_exists($readmeSourcePath)) {
                 $readmeTargetPath = dirname($packageDistPath) . DIRECTORY_SEPARATOR . 'readme.md';
                 $filesystem->copy($readmeSourcePath, $readmeTargetPath);
 
                 $packageDistUrl = $package->getDistUrl();
-                $distReadmeUrl = dirname($packageDistUrl) . DIRECTORY_SEPARATOR . 'readme.md';
+                $distReadmeUrl  = dirname($packageDistUrl) . DIRECTORY_SEPARATOR . 'readme.md';
             }
         } finally {
             $filesystem->remove($tmpPath);
@@ -151,7 +161,7 @@ class ReadmeExtractor
      * Sets readme distribution url for the specified package
      *
      * @param PackageInterface $package
-     * @param string $distReadmeUrl
+     * @param string           $distReadmeUrl
      *
      * @return void
      */

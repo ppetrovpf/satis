@@ -14,6 +14,7 @@ declare(strict_types=1);
 namespace Composer\Satis\Builder;
 
 use Composer\Package\PackageInterface;
+use Composer\Satis\Skipper\Package\UnmodifiedSkipper;
 use Symfony\Component\Console\Output\OutputInterface;
 
 class ArchiveBuilderHelper
@@ -23,13 +24,28 @@ class ArchiveBuilderHelper
     /** @var array The 'archive' part of a configuration file. */
     private $archiveConfig;
 
-    public function __construct(OutputInterface $output, array $archiveConfig)
+    /**
+     * @var string
+     */
+    private $outputDir;
+
+    /**
+     * Skips a package whenever it doesn't contain any changes
+     *
+     * @var UnmodifiedSkipper
+     */
+    private $unmodifiedSkipper;
+
+    public function __construct(OutputInterface $output, string $outputDir, array $archiveConfig)
     {
         $this->output = $output;
+        $this->outputDir = $outputDir;
         $this->archiveConfig = $archiveConfig;
         $this->archiveConfig['skip-dev'] = (bool) ($archiveConfig['skip-dev'] ?? false);
         $this->archiveConfig['whitelist'] = (array) ($archiveConfig['whitelist'] ?? []);
         $this->archiveConfig['blacklist'] = (array) ($archiveConfig['blacklist'] ?? []);
+
+        $this->unmodifiedSkipper = new UnmodifiedSkipper($output, $outputDir, $archiveConfig);
     }
 
     public function getDirectory(string $outputDir): string
@@ -50,6 +66,12 @@ class ArchiveBuilderHelper
         }
 
         $name = $package->getPrettyString();
+
+        if ($this->unmodifiedSkipper->isSkippable($package)) {
+            $this->output->writeln(sprintf("<info>Skipping '%s' (exists in dist dir)</info>", $name));
+
+            return true;
+        }
 
         if (true === $this->archiveConfig['skip-dev'] && true === $package->isDev()) {
             $this->output->writeln(sprintf("<info>Skipping '%s' (is dev)</info>", $name));

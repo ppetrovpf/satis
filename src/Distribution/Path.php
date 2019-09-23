@@ -43,7 +43,9 @@ class Path
      */
     public function getPackageDistPath(PackageInterface $package, string $version): string
     {
-        $helper = new ArchiveBuilderHelper($this->output, $this->config['archive']);
+        $archiveConfig = $this->config['archive'] ?? $this->config;
+
+        $helper = new ArchiveBuilderHelper($this->output, $this->outputDir, $archiveConfig);
         $basedir = $helper->getDirectory($this->outputDir);
 
         $packageName = $package->getName();
