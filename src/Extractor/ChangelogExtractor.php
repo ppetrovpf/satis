@@ -36,13 +36,27 @@ class ChangelogExtractor
     private $outputDir;
 
     /** @var array $config The parameters from ./satis.json. */
-    protected $config;
+    private $config;
 
+    /**
+     * @var ArchiveBuilderHelper
+     */
+    private $helper;
+
+    /**
+     * ChangelogExtractor constructor.
+     *
+     * @param OutputInterface $output
+     * @param string          $outputDir
+     * @param array           $config
+     */
     public function __construct(OutputInterface $output, string $outputDir, array $config)
     {
         $this->output    = $output;
         $this->outputDir = $outputDir;
         $this->config    = $config;
+
+        $this->helper = new ArchiveBuilderHelper($this->output, $this->outputDir, $this->config['archive']);
     }
 
     /**
@@ -112,11 +126,10 @@ class ChangelogExtractor
      */
     private function buildIndex(array $packages): array
     {
-        $helper = new ArchiveBuilderHelper($this->output, $this->outputDir, $this->config['archive']);
         $index  = [];
 
         foreach ($packages as $package) {
-            if ($helper->isSkippable($package)) {
+            if ($this->helper->isSkippable($package)) {
                 continue;
             }
 
@@ -153,7 +166,13 @@ class ChangelogExtractor
      */
     private function extractDiff(PackageInterface $version, ?PackageInterface $versionPrevious): ?string
     {
-        $packageDistChangelogUrl = null;
+        $changelogFilename       = sprintf('changelog-%s.md', $version->getPrettyVersion());
+        $versionDistUrl          = $version->getDistUrl();
+        $packageDistChangelogUrl = dirname($versionDistUrl) . DIRECTORY_SEPARATOR . $changelogFilename;
+
+        if ($this->helper->isUnmodified($version)) {
+            return $packageDistChangelogUrl;
+        }
 
         $this->output->writeln(
             sprintf(
@@ -168,8 +187,6 @@ class ChangelogExtractor
 
         $distPath        = new Path($this->output, $this->outputDir, $this->config);
         $versionDistPath = $distPath->getPackageDistPath($version, $version->getPrettyVersion());
-
-        $changelogFilename = sprintf('changelog-%s.md', $version->getPrettyVersion());
 
         $filesystem          = new Filesystem();
         $changelogTargetPath = dirname($versionDistPath) . DIRECTORY_SEPARATOR . $changelogFilename;
@@ -191,9 +208,6 @@ class ChangelogExtractor
         }
 
         $filesystem->remove($versionPath);
-
-        $versionDistUrl          = $version->getDistUrl();
-        $packageDistChangelogUrl = dirname($versionDistUrl) . DIRECTORY_SEPARATOR . $changelogFilename;
 
         return $packageDistChangelogUrl;
     }

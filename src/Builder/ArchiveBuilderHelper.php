@@ -59,12 +59,13 @@ class ArchiveBuilderHelper
         return $directory;
     }
 
-    public function isSkippable(PackageInterface $package): bool
+    /**
+     * @param PackageInterface $package
+     *
+     * @return bool
+     */
+    public function isUnmodified(PackageInterface $package): bool
     {
-        if ('metapackage' === $package->getType()) {
-            return true;
-        }
-
         $name = $package->getPrettyString();
 
         if ($this->unmodifiedSkipper->isSkippable($package)) {
@@ -72,6 +73,22 @@ class ArchiveBuilderHelper
 
             return true;
         }
+
+        return false;
+    }
+
+    /**
+     * @param PackageInterface $package
+     *
+     * @return bool
+     */
+    public function isSkippable(PackageInterface $package): bool
+    {
+        if ('metapackage' === $package->getType()) {
+            return true;
+        }
+
+        $name = $package->getPrettyString();
 
         if (true === $this->archiveConfig['skip-dev'] && true === $package->isDev()) {
             $this->output->writeln(sprintf("<info>Skipping '%s' (is dev)</info>", $name));

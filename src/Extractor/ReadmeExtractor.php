@@ -35,13 +35,27 @@ class ReadmeExtractor
     private $outputDir;
 
     /** @var array $config The parameters from ./satis.json. */
-    protected $config;
+    private $config;
 
+    /**
+     * @var ArchiveBuilderHelper
+     */
+    private $helper;
+
+    /**
+     * ReadmeExtractor constructor.
+     *
+     * @param OutputInterface $output
+     * @param string          $outputDir
+     * @param array           $config
+     */
     public function __construct(OutputInterface $output, string $outputDir, array $config)
     {
         $this->output    = $output;
         $this->outputDir = $outputDir;
         $this->config    = $config;
+
+        $this->helper = new ArchiveBuilderHelper($this->output, $this->outputDir, $this->config['archive']);
     }
 
     /**
@@ -85,11 +99,10 @@ class ReadmeExtractor
      */
     private function resolveVersions(array $packages): array
     {
-        $helper           = new ArchiveBuilderHelper($this->output, $this->outputDir, $this->config['archive']);
         $versionByPackage = [];
 
         foreach ($packages as $package) {
-            if ($helper->isSkippable($package)) {
+            if ($this->helper->isSkippable($package)) {
                 continue;
             }
 
@@ -124,6 +137,15 @@ class ReadmeExtractor
         $downloadManager = $this->composer->getDownloadManager();
         $downloader      = $downloadManager->getDownloader('zip');
 
+        $filesystem = new Filesystem();
+
+        $packageDistUrl = $package->getDistUrl();
+        $distReadmeUrl  = dirname($packageDistUrl) . DIRECTORY_SEPARATOR . 'readme.md';
+
+        if ($this->helper->isUnmodified($package)) {
+            return $distReadmeUrl;
+        }
+
         $this->output->writeln(
             sprintf(
                 "<info>Extracting README.md from package '%s' with highest version '%s'</info>",
@@ -131,9 +153,6 @@ class ReadmeExtractor
                 $version
             )
         );
-
-        $filesystem    = new Filesystem();
-        $distReadmeUrl = null;
 
         $downloader->extract($extractPath, $tmpPath);
 
@@ -146,9 +165,6 @@ class ReadmeExtractor
             if (file_exists($readmeSourcePath)) {
                 $readmeTargetPath = dirname($packageDistPath) . DIRECTORY_SEPARATOR . 'readme.md';
                 $filesystem->copy($readmeSourcePath, $readmeTargetPath);
-
-                $packageDistUrl = $package->getDistUrl();
-                $distReadmeUrl  = dirname($packageDistUrl) . DIRECTORY_SEPARATOR . 'readme.md';
             }
         } finally {
             $filesystem->remove($tmpPath);
